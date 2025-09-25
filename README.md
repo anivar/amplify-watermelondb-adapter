@@ -58,6 +58,49 @@ const users = await DataStore.query(User);
 await DataStore.save(new User({ name: 'John' }));
 ```
 
+## Integration with Existing Apps
+
+### Easy Migration with Fallback
+
+For existing apps using SQLiteAdapter, use our migration helper with automatic fallback:
+
+```typescript
+import { createFallbackConfiguration } from 'amplify-watermelondb-adapter';
+import { SQLiteAdapter } from '@aws-amplify/datastore-storage-adapter';
+
+// Your existing DataStore configuration
+const dataStoreConfig = {
+  authProviders: { /* your auth */ },
+  syncExpressions: [ /* your sync rules */ ],
+  syncPageSize: 1000,
+  maxRecordsToSync: 100000
+};
+
+// Automatically try WatermelonDB, fallback to SQLite if needed
+createFallbackConfiguration(
+  dataStoreConfig,
+  SQLiteAdapter, // Your fallback adapter
+  {
+    conflictStrategy: 'ACCEPT_REMOTE',
+    enableDebugLogging: true
+  }
+);
+
+await DataStore.start();
+```
+
+### Check Active Adapter
+
+```typescript
+import { isWatermelonDBAdapterActive, getWatermelonDBMetrics } from 'amplify-watermelondb-adapter';
+
+if (isWatermelonDBAdapterActive()) {
+  const metrics = getWatermelonDBMetrics();
+  console.log('Using WatermelonDB with:', metrics.dispatcherType);
+  // Output: "Using WatermelonDB with: jsi" (on React Native)
+}
+```
+
 ## React Native Setup
 
 For React Native projects with JSI support:

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-09-26
+
+### Added
+- DataStore integration utilities for easier adoption
+- `configureDataStoreWithWatermelonDB` helper function
+- `createFallbackConfiguration` for automatic fallback to SQLite
+- `migrateFromSQLiteAdapter` for seamless migration
+- `isWatermelonDBAdapterActive` to check adapter status
+- `getWatermelonDBMetrics` for performance monitoring
+- Enhanced configuration options with pass-through support
+- Comprehensive integration examples
+- Improved error handling and debugging support
+
+### Improved
+- Better documentation with real-world integration patterns
+- Support for existing DataStore configurations
+- Debug logging and metrics collection
+
 ## [1.0.0] - 2025-09-26
 
 ### Added
