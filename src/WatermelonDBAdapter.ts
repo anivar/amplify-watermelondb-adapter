@@ -942,6 +942,11 @@ export class WatermelonDBAdapter {
 
 					const columnName = this.toSnakeCase(fieldName);
 
+					const Q = this.Q;
+					if (!Q) {
+						throw new Error('WatermelonDB Q operators not initialized');
+					}
+
 					return {
 						eq: (value: any) => Q.where(columnName, value),
 						ne: (value: any) => Q.where(columnName, Q.notEq(value)),
@@ -971,6 +976,10 @@ export class WatermelonDBAdapter {
 	private translatePredicateObject(predicateObj: any): any[] {
 		const conditions: any[] = [];
 		const { Q } = this;
+
+		if (!Q) {
+			throw new Error('WatermelonDB Q operators not initialized');
+		}
 
 		if ((predicateObj as any).type === 'and') {
 			const subConditions = (predicateObj as any).predicates
@@ -1010,6 +1019,10 @@ export class WatermelonDBAdapter {
 	 */
 	private translateCondition(columnName: string, condition: any): any {
 		const { Q } = this;
+
+		if (!Q) {
+			throw new Error('WatermelonDB Q operators not initialized');
+		}
 
 		if (condition.eq !== undefined) {
 			return Q.where(columnName, condition.eq);
@@ -1061,6 +1074,10 @@ export class WatermelonDBAdapter {
 	private translateSort(sort: any): any[] {
 		const conditions: any[] = [];
 		const { Q } = this;
+
+		if (!Q) {
+			throw new Error('WatermelonDB Q operators not initialized');
+		}
 
 		if (typeof sort === 'function') {
 			const sortBuilder = {};
