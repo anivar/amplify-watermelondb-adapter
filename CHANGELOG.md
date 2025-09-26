@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2025-09-26
+
+### Added
+- **Subscription Variables Support** (from PR #14564): Multi-tenant filtering for GraphQL subscriptions
+  - `setSubscriptionVariables()` method to set tenant/user filtering variables
+  - `getSubscriptionVariables()` method to retrieve current variables
+  - Automatic application of variables to observe() queries
+- **WebSocket Health Monitoring** (from PR #14563): Connection health monitoring and auto-reconnection
+  - `startWebSocketHealthMonitoring()` with configurable interval and callbacks
+  - `stopWebSocketHealthMonitoring()` for cleanup
+  - Automatic reconnection attempts on connection issues
+- **Multi-Schema Support**: Dynamic schema switching for multi-tenant applications
+  - `setAlternativeSchema()` method for configuring alternative schemas
+  - Schema selector function for runtime schema switching
+  - Useful for fusion devices and multi-store configurations
+- **Keep-Alive Tracking**: WebSocket keep-alive timestamp tracking
+  - `trackKeepAlive()` method to store timestamps in AsyncStorage
+  - Useful for debugging connection issues
+- **Enhanced Operator Support**: Confirmed support for 'in' and 'notIn' operators (from PR #14544)
+  - Already implemented via Q.oneOf() and Q.notIn() mappings
+
+### Improved
+- Better DataStore compatibility with Amplify features
+- Enhanced subscription management with variable filtering
+- More robust WebSocket connection handling
+- TypeScript definitions updated with new methods
+
+### Technical
+- Integrates improvements from user's pending Amplify PRs (#14563, #14564, #14544)
+- Subscription variables enable per-tenant data isolation
+- WebSocket monitoring ensures reliable real-time updates
+
 ## [1.1.3] - 2025-09-26
 
 ### Fixed

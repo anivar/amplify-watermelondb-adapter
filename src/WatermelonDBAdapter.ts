@@ -111,6 +111,11 @@ export class WatermelonDBAdapter {
 	private readonly batchSize: number;
 	private Q: typeof import('@nozbe/watermelondb/QueryDescription') | undefined;
 	private subscriptions = new Set<any>();
+	private subscriptionVariables: Record<string, any> = {};
+	private wsHealthMonitor: any = null;
+	private wsHealthCheckInterval: number = 30000; // 30 seconds default
+	private alternativeSchema: InternalSchema | null = null;
+	private schemaSelector: (() => 'primary' | 'alternative') | null = null;
 
 	constructor(config: WatermelonDBAdapterConfig = {}) {
 		this.cacheTTL = config.cacheTTL || 5 * 60 * 1000; // 5 minutes
@@ -427,7 +432,8 @@ export class WatermelonDBAdapter {
 	 * Create model classes with WatermelonDB decorators
 	 */
 	private async createModelClasses(): Promise<any[]> {
-		if (!this.schema) {
+		const activeSchema = this.getActiveSchema();
+		if (!activeSchema) {
 			return [];
 		}
 
@@ -435,7 +441,7 @@ export class WatermelonDBAdapter {
 		const decorators = require('@nozbe/watermelondb/decorators');
 
 		const modelClasses: any[] = [];
-		const userModels = this.schema.namespaces?.user?.models || {};
+		const userModels = activeSchema.namespaces?.user?.models || {};
 
 		for (const [modelName, modelSchema] of Object.entries(userModels)) {
 			const tableName = this.getTableName(modelName);
@@ -809,8 +815,9 @@ export class WatermelonDBAdapter {
 	public async clear(): Promise<void> {
 		await this.ensureInitialized();
 
-		// Stop all observations first
+		// Stop all observations and monitoring first
 		this.stopObserve();
+		this.stopWebSocketHealthMonitoring();
 
 		await this.db!.write(async () => {
 			for (const collection of this.collections.values()) {
@@ -1311,6 +1318,130 @@ export class WatermelonDBAdapter {
 	}
 
 	/**
+	 * Set alternative schema for multi-tenant switching
+	 * Useful for multi-store/multi-tenant applications like fusion devices
+	 */
+	public setAlternativeSchema(
+		schema: InternalSchema,
+		selector?: () => 'primary' | 'alternative',
+	): void {
+		this.alternativeSchema = schema;
+		this.schemaSelector = selector || null;
+		logger.debug('Alternative schema configured for multi-tenant support');
+	}
+
+	/**
+	 * Get currently active schema based on selector
+	 */
+	private getActiveSchema(): InternalSchema {
+		if (this.schemaSelector && this.alternativeSchema) {
+			const selection = this.schemaSelector();
+			if (selection === 'alternative') {
+				logger.debug('Using alternative schema for multi-tenant context');
+				return this.alternativeSchema;
+			}
+		}
+		return this.schema as InternalSchema;
+	}
+
+	/**
+	 * Track WebSocket keep-alive timestamps (for debugging)
+	 * Stores timestamp in AsyncStorage if available
+	 */
+	public async trackKeepAlive(): Promise<void> {
+		try {
+			// Try to use AsyncStorage if available (React Native)
+			const AsyncStorage = (global as any).AsyncStorage ||
+				(await import('@react-native-async-storage/async-storage' as any).catch(() => null))?.default;
+
+			if (AsyncStorage) {
+				await AsyncStorage.setItem(
+					'WatermelonDB_Last_Keep_Alive',
+					JSON.stringify(new Date())
+				);
+				logger.debug('Keep-alive timestamp tracked');
+			}
+		} catch (error) {
+			// Silently ignore if AsyncStorage is not available
+			logger.debug('Keep-alive tracking not available');
+		}
+	}
+
+	/**
+	 * Set subscription variables for multi-tenant filtering (from PR #14564)
+	 * These variables can be used in GraphQL subscriptions for filtering
+	 */
+	public setSubscriptionVariables(variables: Record<string, any>): void {
+		this.subscriptionVariables = { ...variables };
+		logger.debug('Subscription variables updated:', this.subscriptionVariables);
+	}
+
+	/**
+	 * Get current subscription variables
+	 */
+	public getSubscriptionVariables(): Record<string, any> {
+		return { ...this.subscriptionVariables };
+	}
+
+	/**
+	 * Start WebSocket health monitoring (from PR #14563)
+	 * Monitors connection health and handles reconnection
+	 */
+	public startWebSocketHealthMonitoring(options?: {
+		interval?: number;
+		onHealthCheck?: (isHealthy: boolean) => void;
+		onReconnect?: () => void;
+	}): void {
+		if (this.wsHealthMonitor) {
+			clearInterval(this.wsHealthMonitor);
+		}
+
+		const interval = options?.interval || this.wsHealthCheckInterval;
+		let lastHealthCheckTime = Date.now();
+		let reconnectAttempts = 0;
+
+		this.wsHealthMonitor = setInterval(() => {
+			const now = Date.now();
+			const timeSinceLastCheck = now - lastHealthCheckTime;
+
+			// Check if we've missed a health check (indicating potential connection issue)
+			if (timeSinceLastCheck > interval * 2) {
+				logger.warn('WebSocket health check missed, potential connection issue');
+				if (options?.onHealthCheck) {
+					options.onHealthCheck(false);
+				}
+
+				// Trigger reconnection logic
+				if (options?.onReconnect && reconnectAttempts < 3) {
+					reconnectAttempts++;
+					logger.info(`Attempting reconnection (${reconnectAttempts}/3)`);
+					options.onReconnect();
+				}
+			} else {
+				if (options?.onHealthCheck) {
+					options.onHealthCheck(true);
+				}
+				reconnectAttempts = 0; // Reset on successful health check
+			}
+
+			lastHealthCheckTime = now;
+		}, interval);
+
+		logger.debug(`WebSocket health monitoring started with ${interval}ms interval`);
+	}
+
+	/**
+	 * Stop WebSocket health monitoring
+	 */
+	public stopWebSocketHealthMonitoring(): void {
+		if (this.wsHealthMonitor) {
+			clearInterval(this.wsHealthMonitor);
+			this.wsHealthMonitor = null;
+			logger.debug('WebSocket health monitoring stopped');
+		}
+	}
+
+	/**
 	 * Observe real-time changes to a model collection
 	 * Returns an observable that emits arrays of models matching the predicate
 	 */
@@ -1343,8 +1474,23 @@ export class WatermelonDBAdapter {
 				return;
 			}
 
-			// Build WatermelonDB query
-			const query = this.buildQuery(collection, predicate, pagination);
+			// Build WatermelonDB query with subscription variables
+			let query = this.buildQuery(collection, predicate, pagination);
+
+			// Apply subscription variables for multi-tenant filtering if available
+			if (Object.keys(this.subscriptionVariables).length > 0 && this.Q) {
+				const additionalConditions: any[] = [];
+				for (const [key, value] of Object.entries(this.subscriptionVariables)) {
+					const columnName = this.toSnakeCase(key);
+					additionalConditions.push(this.Q.where(columnName, value));
+				}
+				if (additionalConditions.length > 0) {
+					// Combine existing conditions with subscription variables
+					const existingConditions = (query as any)._conditions || [];
+					query = collection.query(...existingConditions, ...additionalConditions);
+					logger.debug('Applied subscription variables to observe query:', this.subscriptionVariables);
+				}
+			}
 
 			// Subscribe to WatermelonDB's observe()
 			const subscription = query.observe().subscribe({
@@ -1391,11 +1537,17 @@ export class WatermelonDBAdapter {
 			}
 		});
 
+		// Stop WebSocket health monitoring
+		this.stopWebSocketHealthMonitoring();
+
 		// Clear subscriptions set
 		this.subscriptions.clear();
 
 		// Clear all cached queries to force fresh data on next observe
 		this.queryCache.clear();
+
+		// Clear subscription variables
+		this.subscriptionVariables = {};
 
 		logger.debug('Stopped observing changes and cleaned up subscriptions');
 	}
