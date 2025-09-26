@@ -46,6 +46,7 @@ export default [
       '@nozbe/watermelondb/decorators',
       '@nozbe/watermelondb/Model',
       '@nozbe/watermelondb/QueryDescription',
+      '@react-native-async-storage/async-storage',
       'rxjs',
       'rxjs/operators'
     ]
