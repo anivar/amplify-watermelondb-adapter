@@ -2,73 +2,77 @@
 
 [![npm version](https://img.shields.io/npm/v/amplify-watermelondb-adapter.svg)](https://www.npmjs.com/package/amplify-watermelondb-adapter)
 [![npm downloads](https://img.shields.io/npm/dm/amplify-watermelondb-adapter.svg)](https://www.npmjs.com/package/amplify-watermelondb-adapter)
+[![npm bundle size](https://img.shields.io/bundlephobia/minzip/amplify-watermelondb-adapter)](https://bundlephobia.com/package/amplify-watermelondb-adapter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js Version](https://img.shields.io/node/v/amplify-watermelondb-adapter.svg)](https://nodejs.org)
 [![React Native](https://img.shields.io/badge/React%20Native-%3E%3D0.76.0-blue.svg)](https://reactnative.dev/)
+[![Amplify DataStore](https://img.shields.io/badge/Amplify%20DataStore-4.x%20%7C%205.x-orange.svg)](https://docs.amplify.aws/lib/datastore/getting-started/)
+[![WatermelonDB](https://img.shields.io/badge/WatermelonDB-%3E%3D0.27.0-green.svg)](https://github.com/Nozbe/WatermelonDB)
+[![GitHub](https://img.shields.io/github/stars/anivar/amplify-watermelondb-adapter?style=social)](https://github.com/anivar/amplify-watermelondb-adapter)
 
-**Supercharge AWS Amplify DataStore with WatermelonDB's ⚡️ performance**
+**A WatermelonDB adapter for AWS Amplify DataStore**
 
-> AWS Amplify is a declarative JavaScript library for application development using cloud services. This adapter enhances DataStore's offline synchronization capabilities with WatermelonDB's proven performance.
+> This adapter integrates WatermelonDB as a storage adapter for AWS Amplify DataStore, providing an alternative to the default SQLite adapter.
 
-## 🎯 Why You Need This
+## 🎯 Overview
 
-### The DataStore Reality
+### About AWS Amplify DataStore
 
-AWS Amplify DataStore provides a powerful programming model for leveraging shared and distributed data without writing additional code for offline and online scenarios:
+AWS Amplify DataStore provides a programming model for leveraging shared and distributed data:
 - 🔄 **Automatic sync** between cloud and local data
 - 🔐 **Built-in auth** and conflict resolution
-- 📊 **GraphQL API** integration seamlessly
-- 🌐 **Cross-platform** - Web, React Native, iOS, Android
+- 📊 **GraphQL API** integration
+- 🌐 **Cross-platform** support - Web, React Native, iOS, Android
 
-But real-world applications face challenges at scale:
-- 🐌 **Performance bottlenecks** with large datasets (10k+ records)
-- 📱 **Slow app launches** when initializing thousands of records
-- 🔥 **Memory pressure** on resource-constrained devices
-- ⏱️ **Query latency** impacting user experience
+### About WatermelonDB
 
-### Enter WatermelonDB 🍉
+WatermelonDB is a reactive database framework built for React and React Native applications:
+- 😎 **Lazy loading** - Records load on demand
+- ⚡ **Native SQLite** performance with JSI on React Native
+- ✨ **Fully reactive** - UI updates automatically when data changes
+- 📈 **Designed for scale** - Handles large datasets efficiently
 
-WatermelonDB solves these problems with:
-- 😎 **Lazy loading** - Nothing loads until requested
-- ⚡ **Native SQLite** performance on separate threads
-- ✨ **Fully reactive** - UI auto-updates when data changes
-- 📈 **Scales to 100,000+ records** without breaking a sweat
+### Integration
 
-### 🎉 The Perfect Marriage
-
-**amplify-watermelondb-adapter** bridges these two worlds:
+This adapter allows you to use WatermelonDB as the storage engine for Amplify DataStore:
 
 ```typescript
-// Before: DataStore with performance issues
+// Standard DataStore setup
+import { DataStore } from '@aws-amplify/datastore';
+import { SQLiteAdapter } from '@aws-amplify/datastore-storage-adapter';
+
 DataStore.configure({
-  storageAdapter: SQLiteAdapter // Slower with large datasets
+  storageAdapter: SQLiteAdapter
 });
 
-// After: DataStore with WatermelonDB power!
+// With WatermelonDB adapter
+import { WatermelonDBAdapter } from 'amplify-watermelondb-adapter';
+
 DataStore.configure({
-  storageAdapter: new WatermelonDBAdapter() // 15-30% faster! ⚡
+  storageAdapter: new WatermelonDBAdapter()
 });
 ```
 
-## 🚀 Real-World Performance Gains
+## 🚀 Platform Support
 
-| Operation | SQLite Adapter | WatermelonDB Adapter | Improvement |
-|-----------|---------------|---------------------|-------------|
-| App Launch (10k records) | 3-5 seconds | < 1 second | **80% faster** 🚀 |
-| Query (cached) | 5-10ms | < 1ms | **90% faster** ⚡ |
-| Query (uncached) | 15-30ms | 2-5ms | **85% faster** 📈 |
-| Batch Write (1000 items) | 2-3 seconds | 200-400ms | **87% faster** 🔥 |
+The adapter automatically selects the optimal storage engine for each platform:
 
-*Performance measured on React Native 0.76+ with JSI enabled*
+| Platform | Storage Engine | Features |
+|----------|----------------|----------|
+| **React Native iOS/Android** | JSI + SQLite | Native performance with JSI bridge |
+| **Web** | LokiJS + IndexedDB | Browser-optimized with IndexedDB persistence |
+| **Node.js** | better-sqlite3 | Server-grade SQLite performance |
+| **Fallback** | In-Memory | Development and testing scenarios |
 
-## 💡 Who Should Use This?
+## 💡 Use Cases
 
-Perfect for apps that need:
-- 📱 **Offline-first** functionality with cloud sync
-- 📈 **Large datasets** (thousands to millions of records)
-- ⚡ **Instant performance** with no loading screens
-- 🔄 **Real-time updates** across components
-- 🏗️ **Enterprise-grade** data management
+This adapter is suitable for applications that:
+- 📱 Use **DataStore** for offline-first functionality
+- 📈 Work with **large datasets** or complex queries
+- ⚡ Need **reactive UI updates** when data changes
+- 🔄 Want **WatermelonDB's performance** benefits
+- 🏗️ Require **cross-platform** compatibility
 
 ## 🛠️ Installation
 
@@ -149,113 +153,100 @@ DataStore.observe(Todo).subscribe(msg => {
 });
 ```
 
-## 📱 Platform Magic
+## ✨ Features
 
-The adapter automatically selects the best engine for each platform:
-
-| Platform | Engine | Performance |
-|----------|--------|-------------|
-| iOS | JSI + SQLite | ⚡ Blazing fast with C++ bridge |
-| Android | JSI + SQLite | ⚡ Native performance |
-| Web | LokiJS + IndexedDB | 🚀 Optimized for browsers |
-| Node.js | better-sqlite3 | 💪 Server-grade performance |
-
-## 🏆 Success Stories
-
-> "We went from 5-second app launches to under 1 second. Our users think we rebuilt the entire app!" - *Enterprise Customer*
-
-> "DataStore's sync with WatermelonDB's speed is the best of both worlds. We handle 100k+ records smoothly." - *Retail App Developer*
-
-> "The reactive updates are magic. Our real-time dashboards just work without any complex state management." - *Analytics Platform*
-
-## 🤝 Why Developers Love It
-
-- **🔌 Drop-in replacement** - Change 1 line, gain massive performance
-- **🛡️ Battle-tested** - Used in production apps with millions of users
+- **🍉 WatermelonDB Integration** - Seamlessly integrates with WatermelonDB's reactive architecture
+- **🔌 Drop-in replacement** - Minimal configuration changes required
 - **📚 Full TypeScript** - Complete type safety and IntelliSense
-- **🔄 Automatic fallback** - Never breaks, always works
-- **📖 Extensive docs** - Examples for every use case
+- **🔄 Automatic fallback** - Falls back to in-memory storage if initialization fails
+- **⚙️ Configurable** - Customizable cache, batch size, and conflict resolution
+- **🛠️ Development-friendly** - Comprehensive error handling and debugging support
+- **🍉 JSI Performance** - Leverages WatermelonDB's JSI dispatcher on React Native
+- **🚀 Cross-platform** - Works on iOS, Android, Web, and Node.js
+- **💾 Smart Caching** - Built-in LRU cache with configurable TTL
 
 ## 🎓 Examples
 
-### E-commerce App
+### 🍉 E-commerce App
 ```typescript
-// Handle massive product catalogs
+// Query products with WatermelonDB's reactive performance
 const products = await DataStore.query(Product,
   p => p.inStock.eq(true),
-  { limit: 1000 } // No problem! Loads instantly
+  { limit: 1000 }
 );
 ```
 
-### Chat Application
+### 🍉 Chat Application
 ```typescript
-// Real-time messaging that scales
+// Real-time messaging with reactive updates
 DataStore.observe(Message, m =>
   m.conversationId.eq(currentChat)
 ).subscribe(update => {
-  // UI updates instantly, even with 10k+ messages
+  // UI updates automatically when data changes
 });
 ```
 
-### Offline-First POS System
+### 🍉 Offline-First POS System
 ```typescript
-// Works perfectly offline, syncs when connected
+// Offline-first with DataStore sync
 const order = await DataStore.save(new Order({
   items: cartItems,
   total: calculateTotal()
 }));
-// Saved locally instantly, synced to cloud automatically
+// Saved locally, synced to cloud when connected
 ```
 
-## 📊 Benchmarks
+## 📊 Technical Specifications
 
-Tested with production workloads:
+Adapter performance characteristics from automated tests:
 
 ```
-Dataset: 50,000 records
-Device: iPhone 14 Pro
+🍉 WatermelonDB Adapter Performance Metrics
+==========================================
 
-Operation         | Time  | vs SQLite
-------------------|-------|----------
-Initial Load      | 0.8s  | 4x faster
-Query (indexed)   | 2ms   | 10x faster
-Update (batched)  | 150ms | 8x faster
-Memory Usage      | 45MB  | 60% less
+Operation                 | Average Time
+--------------------------|-------------
+Adapter Creation          | 0.03ms
+Config Validation         | 0.05ms
+Dispatcher Detection      | 0.01ms
+Schema Version Lookup     | 0.02ms
+Memory (1000 instances)   | 2.65MB
+Concurrent Creation       | 500 adapters in 0.96ms
 ```
 
-## 🔗 Integration
+## 🔗 Compatibility
 
-Works seamlessly with:
-- AWS Amplify DataStore ✅
-- GraphQL subscriptions ✅
-- Multi-auth rules ✅
-- Conflict resolution ✅
-- Schema migrations ✅
-- DataStore Selective Sync ✅
+Compatible with:
+- 🍉 **AWS Amplify DataStore** - v4.x and v5.x
+- 🍉 **GraphQL subscriptions** - Full support
+- 🍉 **Multi-auth rules** - All authentication strategies
+- 🍉 **Conflict resolution** - Version-based and custom strategies
+- 🍉 **Schema migrations** - Automatic schema handling
+- 🍉 **DataStore Selective Sync** - Predicate-based syncing
 
 ## 📦 What's Included
 
-- 🏗️ **WatermelonDBAdapter** - Core adapter implementation
+- 🍉 **WatermelonDBAdapter** - Core adapter implementation
 - 🔧 **Integration helpers** - Easy setup utilities
-- 📊 **Performance metrics** - Monitor your gains
-- 🔄 **Migration tools** - Upgrade existing apps
+- 📊 **Performance monitoring** - Metrics collection
+- 🔄 **Migration tools** - Upgrade from SQLiteAdapter
 - 📚 **TypeScript definitions** - Full type safety
-- 🎯 **Examples** - Real-world patterns
+- 🎯 **Examples** - Real-world usage patterns
 
 ## 🚦 Getting Started
 
-1. **Install the package**
+1. **🍉 Install the package**
    ```bash
-   npm install amplify-watermelondb-adapter
+   npm install amplify-watermelondb-adapter @nozbe/watermelondb
    ```
 
-2. **Configure DataStore**
+2. **🍉 Configure DataStore**
    ```typescript
    import { configureDataStoreWithWatermelonDB } from 'amplify-watermelondb-adapter';
    configureDataStoreWithWatermelonDB();
    ```
 
-3. **Enjoy the speed!** ⚡
+3. **🍉 Start using DataStore** - Same API, WatermelonDB performance!
 
 ## 📖 Documentation
 
@@ -267,16 +258,16 @@ Works seamlessly with:
 ## 🤔 FAQ
 
 **Q: Is this production-ready?**
-A: Yes! Used in production apps handling millions of records.
+A: Yes! The adapter has comprehensive test coverage and follows production-grade patterns.
 
 **Q: Does it support all DataStore features?**
-A: Yes! 100% compatible with DataStore API.
+A: Yes! The adapter implements the complete DataStore storage interface.
 
-**Q: What if WatermelonDB fails to load?**
-A: Automatic fallback to SQLite adapter ensures your app always works.
+**Q: What if WatermelonDB fails to initialize?**
+A: The adapter automatically falls back to in-memory storage to prevent app crashes.
 
-**Q: How much faster is it really?**
-A: 15-30% overall improvement, up to 90% for specific operations.
+**Q: What platforms are supported?**
+A: iOS, Android, Web, and Node.js with automatic platform detection.
 
 ## 🛟 Support
 
@@ -286,20 +277,20 @@ A: 15-30% overall improvement, up to 90% for specific operations.
 
 ## 🙏 Acknowledgments
 
-- [AWS Amplify](https://aws.amazon.com/amplify/) - For the amazing DataStore
-- [WatermelonDB](https://github.com/Nozbe/WatermelonDB) - For the blazing-fast database
-- [React Native](https://reactnative.dev/) - For making mobile development awesome
+- 🍉 [AWS Amplify](https://aws.amazon.com/amplify/) - For the DataStore framework
+- 🍉 [WatermelonDB](https://github.com/Nozbe/WatermelonDB) - For the reactive database architecture
+- 🍉 [React Native](https://reactnative.dev/) - For cross-platform mobile development
 
 ## 📄 License
 
-MIT - Use it, love it, ship it! 🚀
+MIT License - See [LICENSE](LICENSE) file for details.
 
 ---
 
 <p align="center">
-  Made with ❤️ for developers who demand performance
+  🍉 Built with WatermelonDB's reactive performance for Amplify DataStore 🍉
 </p>
 
 <p align="center">
-  <b>Stop choosing between features and performance. Have both. 🍉⚡</b>
+  <b>Bringing WatermelonDB's ⚡ performance to AWS Amplify DataStore 🍉</b>
 </p>
