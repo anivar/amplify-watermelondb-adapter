@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2025-09-26
+
+### Changed
+- Documentation cleanup
+
 ## [1.1.5] - 2025-09-26
-
-Same as v1.1.4 with cleaner references.
-
-## [1.1.4] - 2025-09-26 (unpublished)
 
 ### Added
 - **Subscription Variables Support** (from PR #14564): Multi-tenant filtering for GraphQL subscriptions
