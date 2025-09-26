@@ -131,14 +131,14 @@ const adapter = new WatermelonDBAdapter();
 
 // Configure subscription variables for multi-tenant filtering
 adapter.setSubscriptionVariables({
-  storeId: 'store-123',
-  tenantId: 'tenant-456'
+  tenantId: 'tenant-456',
+  userId: 'user-789'
 });
 
-// Dynamic schema switching for fusion devices
-adapter.setAlternativeSchema(multiStoreSchema, () => {
+// Dynamic schema switching
+adapter.setAlternativeSchema(alternativeSchema, () => {
   // Your logic to determine which schema to use
-  return isMultiStore() ? 'alternative' : 'primary';
+  return shouldUseAlternative() ? 'alternative' : 'primary';
 });
 ```
 
@@ -225,7 +225,7 @@ DataStore.observe(Todo).subscribe(msg => {
 - **💾 Smart Caching** - Built-in LRU cache with configurable TTL
 
 ### 🆕 New in v1.1.4
-- **🏢 Multi-Tenant Support** - Dynamic schema switching for multi-store applications
+- **🏢 Multi-Tenant Support** - Dynamic schema switching for multi-tenant applications
 - **📡 Subscription Variables** - Filter GraphQL subscriptions per tenant/user ([Amplify PR #14564](https://github.com/aws-amplify/amplify-js/pull/14564))
 - **🔌 WebSocket Health Monitoring** - Auto-reconnection with health checks ([Amplify PR #14563](https://github.com/aws-amplify/amplify-js/pull/14563))
 - **📝 Keep-Alive Tracking** - Debug connection issues with AsyncStorage timestamps

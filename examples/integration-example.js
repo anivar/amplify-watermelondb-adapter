@@ -13,7 +13,7 @@ import {
 } from 'amplify-watermelondb-adapter';
 
 // Example 1: Simple integration with auto-fallback
-export const setupDataStoreWithFallback = async (licenseKey, storeId, syncExpressions) => {
+export const setupDataStoreWithFallback = async (licenseKey, tenantId, syncExpressions) => {
     const dataStoreConfig = {
         authProviders: {
             functionAuthProvider: async () => ({
@@ -96,7 +96,7 @@ export const manualSetup = async () => {
 // Example 3: React Native component integration
 import React, { useEffect, useState } from 'react';
 
-export const DataStoreSyncComponent = ({ licenseKey, storeId }) => {
+export const DataStoreSyncComponent = ({ licenseKey, tenantId }) => {
     const [adapterType, setAdapterType] = useState(null);
     const [metrics, setMetrics] = useState(null);
 
@@ -143,7 +143,7 @@ export const DataStoreSyncComponent = ({ licenseKey, storeId }) => {
         return () => {
             DataStore.stop().catch(console.error);
         };
-    }, [licenseKey, storeId]);
+    }, [licenseKey, tenantId]);
 
     return (
         <View>

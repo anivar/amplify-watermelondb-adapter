@@ -1319,7 +1319,7 @@ export class WatermelonDBAdapter {
 
 	/**
 	 * Set alternative schema for multi-tenant switching
-	 * Useful for multi-store/multi-tenant applications like fusion devices
+	 * Useful for multi-tenant applications with different schemas
 	 */
 	public setAlternativeSchema(
 		schema: InternalSchema,

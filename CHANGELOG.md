@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-Schema Support**: Dynamic schema switching for multi-tenant applications
   - `setAlternativeSchema()` method for configuring alternative schemas
   - Schema selector function for runtime schema switching
-  - Useful for fusion devices and multi-store configurations
+  - Useful for multi-tenant applications
 - **Keep-Alive Tracking**: WebSocket keep-alive timestamp tracking
   - `trackKeepAlive()` method to store timestamps in AsyncStorage
   - Useful for debugging connection issues
