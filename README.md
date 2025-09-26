@@ -120,7 +120,7 @@ createFallbackConfiguration(
 
 ## 🔥 Advanced Features
 
-### 🏢 Multi-Tenant Support (v1.1.4)
+### 🏢 Multi-Tenant Support (v1.1.5)
 
 Integrates subscription variables from [Amplify PR #14564](https://github.com/aws-amplify/amplify-js/pull/14564) for multi-tenant GraphQL filtering.
 
@@ -142,7 +142,7 @@ adapter.setAlternativeSchema(alternativeSchema, () => {
 });
 ```
 
-### 📡 WebSocket Health Monitoring (v1.1.4)
+### 📡 WebSocket Health Monitoring (v1.1.5)
 
 Implements connection health monitoring from [Amplify PR #14563](https://github.com/aws-amplify/amplify-js/pull/14563) with auto-reconnection capabilities.
 
@@ -185,7 +185,7 @@ new WatermelonDBAdapter({
 });
 ```
 
-### 🔍 Enhanced Query Operators (v1.1.4)
+### 🔍 Enhanced Query Operators (v1.1.5)
 
 Supports 'in' and 'notIn' operators from [Amplify PR #14544](https://github.com/aws-amplify/amplify-js/pull/14544) for advanced filtering.
 
@@ -224,7 +224,7 @@ DataStore.observe(Todo).subscribe(msg => {
 - **🚀 Cross-platform** - Works on iOS, Android, Web, and Node.js
 - **💾 Smart Caching** - Built-in LRU cache with configurable TTL
 
-### 🆕 New in v1.1.4
+### 🆕 New in v1.1.5
 - **🏢 Multi-Tenant Support** - Dynamic schema switching for multi-tenant applications
 - **📡 Subscription Variables** - Filter GraphQL subscriptions per tenant/user ([Amplify PR #14564](https://github.com/aws-amplify/amplify-js/pull/14564))
 - **🔌 WebSocket Health Monitoring** - Auto-reconnection with health checks ([Amplify PR #14563](https://github.com/aws-amplify/amplify-js/pull/14563))
@@ -316,7 +316,7 @@ Compatible with:
 
 ## 📋 API Reference
 
-### New Methods (v1.1.4)
+### New Methods (v1.1.5)
 
 | Method | Description |
 |--------|-------------|
