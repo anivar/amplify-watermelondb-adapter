@@ -41,7 +41,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anivar/amplify-watermelondb-adapter.git"
+    "url": "git+https://github.com/anivar/amplify-watermelondb-adapter.git"
   },
   "bugs": {
     "url": "https://github.com/anivar/amplify-watermelondb-adapter/issues"
