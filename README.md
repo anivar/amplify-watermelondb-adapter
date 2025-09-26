@@ -252,15 +252,6 @@ DataStore.observe(Message, m =>
 });
 ```
 
-### 🍉 Offline-First POS System
-```typescript
-// Offline-first with DataStore sync
-const order = await DataStore.save(new Order({
-  items: cartItems,
-  total: calculateTotal()
-}));
-// Saved locally, synced to cloud when connected
-```
 
 ## 📊 Technical Specifications
 
