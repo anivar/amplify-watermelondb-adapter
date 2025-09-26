@@ -804,10 +804,13 @@ export class WatermelonDBAdapter {
 	}
 
 	/**
-	 * Clear all data
+	 * Clear all data and clean up resources
 	 */
 	public async clear(): Promise<void> {
 		await this.ensureInitialized();
+
+		// Stop all observations first
+		this.stopObserve();
 
 		await this.db!.write(async () => {
 			for (const collection of this.collections.values()) {
@@ -817,7 +820,7 @@ export class WatermelonDBAdapter {
 		});
 
 		this.queryCache.clear();
-		logger.debug('All data cleared');
+		logger.debug('All data cleared and resources cleaned up');
 	}
 
 	/**
@@ -1358,9 +1361,13 @@ export class WatermelonDBAdapter {
 				},
 			});
 
+			// Track subscription for cleanup
+			this.subscriptions.add(subscription);
+
 			// Return unsubscribe function
 			return () => {
 				subscription.unsubscribe();
+				this.subscriptions.delete(subscription);
 				// Clear related cache entries
 				const cacheKey = this.getCacheKey(tableName, predicate, pagination);
 				this.queryCache.delete(cacheKey);
@@ -1370,12 +1377,27 @@ export class WatermelonDBAdapter {
 
 	/**
 	 * Stop observing changes
-	 * Cleans up subscriptions and cache
+	 * Cleans up all active subscriptions and cache
 	 */
 	public stopObserve(): void {
+		// Unsubscribe all active subscriptions
+		this.subscriptions.forEach((subscription) => {
+			try {
+				if (subscription && typeof subscription.unsubscribe === 'function') {
+					subscription.unsubscribe();
+				}
+			} catch (error) {
+				logger.warn('Error unsubscribing:', error);
+			}
+		});
+
+		// Clear subscriptions set
+		this.subscriptions.clear();
+
 		// Clear all cached queries to force fresh data on next observe
 		this.queryCache.clear();
-		logger.debug('Stopped observing changes');
+
+		logger.debug('Stopped observing changes and cleaned up subscriptions');
 	}
 
 	/**

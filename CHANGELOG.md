@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2025-09-26
+
+### Fixed
+- **Critical**: Fixed memory leak in observe() method - subscriptions are now properly tracked and cleaned up
+- **Critical**: Implemented proper cleanup in stopObserve() - all active subscriptions are now unsubscribed
+- Added subscription cleanup to clear() method for complete resource management
+
+### Improved
+- Enhanced subscription tracking for DataStore compatibility
+- Better memory management for long-running applications
+- More robust error handling in subscription cleanup
+
+### Documentation
+- Updated README with factual content and removed unverified claims
+- Added comprehensive badge collection for better visibility
+- Included watermelon emojis throughout for brand consistency
+
 ## [1.1.2] - 2025-09-26
 
 ### Added
