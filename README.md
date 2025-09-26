@@ -120,6 +120,48 @@ createFallbackConfiguration(
 
 ## 🔥 Advanced Features
 
+### 🏢 Multi-Tenant Support (v1.1.4)
+
+Integrates subscription variables from [Amplify PR #14564](https://github.com/aws-amplify/amplify-js/pull/14564) for multi-tenant GraphQL filtering.
+
+```typescript
+import { WatermelonDBAdapter } from 'amplify-watermelondb-adapter';
+
+const adapter = new WatermelonDBAdapter();
+
+// Configure subscription variables for multi-tenant filtering
+adapter.setSubscriptionVariables({
+  storeId: 'store-123',
+  tenantId: 'tenant-456'
+});
+
+// Dynamic schema switching for fusion devices
+adapter.setAlternativeSchema(multiStoreSchema, () => {
+  // Your logic to determine which schema to use
+  return isMultiStore() ? 'alternative' : 'primary';
+});
+```
+
+### 📡 WebSocket Health Monitoring (v1.1.4)
+
+Implements connection health monitoring from [Amplify PR #14563](https://github.com/aws-amplify/amplify-js/pull/14563) with auto-reconnection capabilities.
+
+```typescript
+// Monitor WebSocket connection health
+adapter.startWebSocketHealthMonitoring({
+  interval: 30000, // 30 seconds
+  onHealthCheck: (isHealthy) => {
+    console.log(`WebSocket health: ${isHealthy ? '✅' : '❌'}`);
+  },
+  onReconnect: () => {
+    console.log('Attempting WebSocket reconnection...');
+  }
+});
+
+// Track keep-alive timestamps for debugging
+adapter.trackKeepAlive(); // Stores in AsyncStorage
+```
+
 ### 📊 Performance Monitoring
 
 ```typescript
@@ -143,6 +185,22 @@ new WatermelonDBAdapter({
 });
 ```
 
+### 🔍 Enhanced Query Operators (v1.1.4)
+
+Supports 'in' and 'notIn' operators from [Amplify PR #14544](https://github.com/aws-amplify/amplify-js/pull/14544) for advanced filtering.
+
+```typescript
+// Query with 'in' operator
+const priorityTasks = await DataStore.query(Todo, todo =>
+  todo.priority.in([1, 2, 3])
+);
+
+// Query with 'notIn' operator
+const nonUrgentTasks = await DataStore.query(Todo, todo =>
+  todo.status.notIn(['urgent', 'critical'])
+);
+```
+
 ### 🔄 Reactive Queries
 
 ```typescript
@@ -155,6 +213,7 @@ DataStore.observe(Todo).subscribe(msg => {
 
 ## ✨ Features
 
+### Core Features
 - **🍉 WatermelonDB Integration** - Seamlessly integrates with WatermelonDB's reactive architecture
 - **🔌 Drop-in replacement** - Minimal configuration changes required
 - **📚 Full TypeScript** - Complete type safety and IntelliSense
@@ -164,6 +223,13 @@ DataStore.observe(Todo).subscribe(msg => {
 - **🍉 JSI Performance** - Leverages WatermelonDB's JSI dispatcher on React Native
 - **🚀 Cross-platform** - Works on iOS, Android, Web, and Node.js
 - **💾 Smart Caching** - Built-in LRU cache with configurable TTL
+
+### 🆕 New in v1.1.4
+- **🏢 Multi-Tenant Support** - Dynamic schema switching for multi-store applications
+- **📡 Subscription Variables** - Filter GraphQL subscriptions per tenant/user ([Amplify PR #14564](https://github.com/aws-amplify/amplify-js/pull/14564))
+- **🔌 WebSocket Health Monitoring** - Auto-reconnection with health checks ([Amplify PR #14563](https://github.com/aws-amplify/amplify-js/pull/14563))
+- **📝 Keep-Alive Tracking** - Debug connection issues with AsyncStorage timestamps
+- **🔍 Enhanced Operators** - Full support for 'in' and 'notIn' query operators ([Amplify PR #14544](https://github.com/aws-amplify/amplify-js/pull/14544))
 
 ## 🎓 Examples
 
@@ -247,6 +313,30 @@ Compatible with:
    ```
 
 3. **🍉 Start using DataStore** - Same API, WatermelonDB performance!
+
+## 📋 API Reference
+
+### New Methods (v1.1.4)
+
+| Method | Description |
+|--------|-------------|
+| `setSubscriptionVariables(vars)` | Set GraphQL subscription filtering variables for multi-tenant support |
+| `getSubscriptionVariables()` | Get current subscription variables |
+| `setAlternativeSchema(schema, selector)` | Configure alternative schema for runtime switching |
+| `startWebSocketHealthMonitoring(options)` | Start monitoring WebSocket connection health |
+| `stopWebSocketHealthMonitoring()` | Stop WebSocket health monitoring |
+| `trackKeepAlive()` | Store keep-alive timestamp in AsyncStorage |
+
+### Core Methods
+
+| Method | Description |
+|--------|-------------|
+| `setup(schema, ...)` | Initialize adapter with DataStore schema |
+| `query(model, predicate, pagination)` | Query records with optional filtering |
+| `save(model, condition)` | Save or update a model instance |
+| `delete(model, condition)` | Delete model(s) |
+| `observe(model, predicate)` | Subscribe to real-time changes |
+| `batchSave(model, items)` | Efficiently save multiple items |
 
 ## 📖 Documentation
 
