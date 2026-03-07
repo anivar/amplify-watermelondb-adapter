@@ -65,6 +65,7 @@ const mockSchema: InternalSchema = {
     namespaces: {
         [NAMESPACES.DATASTORE]: {
             name: NAMESPACES.DATASTORE,
+            enums: {},
             models: {
                 TestModel: {
                     syncable: true,
@@ -154,7 +155,7 @@ const mockSchema: InternalSchema = {
 
 // Mock functions
 const mockNamespaceResolver: NamespaceResolver = (model: any) => NAMESPACES.DATASTORE;
-const mockModelInstanceCreator: ModelInstanceCreator = jest.fn((modelConstructor, json) => {
+const mockModelInstanceCreator: ModelInstanceCreator = jest.fn((modelConstructor: any, json: any) => {
     return new modelConstructor(json);
 });
 const mockGetModelConstructor = (namespace: string, modelName: string) => {
@@ -257,7 +258,7 @@ describe('WatermelonDBAdapter', () => {
 
             const [saved] = await adapter.save(model);
 
-            const condition = (m: TestModel) => m.priority.eq(2);
+            const condition = (m: any) => m.priority.eq(2);
 
             const updated = new TestModel({
                 ...saved,
@@ -291,7 +292,7 @@ describe('WatermelonDBAdapter', () => {
         });
 
         it('should query with simple predicate', async () => {
-            const predicate = (m: TestModel) => m.isCompleted.eq(true);
+            const predicate = (m: any) => m.isCompleted.eq(true);
             const results = await adapter.query(
                 TestModel as PersistentModelConstructor<TestModel>,
                 predicate as any
@@ -302,7 +303,7 @@ describe('WatermelonDBAdapter', () => {
         });
 
         it('should query with compound predicate', async () => {
-            const predicate = (m: TestModel) =>
+            const predicate = (m: any) =>
                 m.priority.eq(1).and(m.isCompleted.eq(false));
 
             const results = await adapter.query(
@@ -315,7 +316,7 @@ describe('WatermelonDBAdapter', () => {
         });
 
         it('should query with contains operator', async () => {
-            const predicate = (m: TestModel) => m.title.contains('Special');
+            const predicate = (m: any) => m.title.contains('Special');
             const results = await adapter.query(
                 TestModel as PersistentModelConstructor<TestModel>,
                 predicate as any
@@ -340,7 +341,7 @@ describe('WatermelonDBAdapter', () => {
                 TestModel as PersistentModelConstructor<TestModel>,
                 undefined,
                 {
-                    sort: (s: any) => s.priority.ascending()
+                    sort: ((s: any) => s.priority.ascending()) as any
                 }
             );
 
@@ -365,7 +366,7 @@ describe('WatermelonDBAdapter', () => {
         it('should query first model', async () => {
             const result = await adapter.queryOne(
                 TestModel as PersistentModelConstructor<TestModel>,
-                'FIRST'
+                'FIRST' as any
             );
 
             expect(result).toBeDefined();
@@ -375,7 +376,7 @@ describe('WatermelonDBAdapter', () => {
         it('should query last model', async () => {
             const result = await adapter.queryOne(
                 TestModel as PersistentModelConstructor<TestModel>,
-                'LAST'
+                'LAST' as any
             );
 
             expect(result).toBeDefined();
@@ -386,7 +387,7 @@ describe('WatermelonDBAdapter', () => {
             await adapter.clear();
             const result = await adapter.queryOne(
                 TestModel as PersistentModelConstructor<TestModel>,
-                'FIRST'
+                'FIRST' as any
             );
 
             expect(result).toBeUndefined();
@@ -423,7 +424,7 @@ describe('WatermelonDBAdapter', () => {
                 await adapter.save(model);
             }
 
-            const predicate = (m: TestModel) => m.isCompleted.eq(true);
+            const predicate = (m: any) => m.isCompleted.eq(true);
             const [deleted, remaining] = await adapter.delete(
                 TestModel as PersistentModelConstructor<TestModel>,
                 predicate as any
@@ -518,7 +519,7 @@ describe('WatermelonDBAdapter', () => {
         it('should observe with predicates', async () => {
             const changes: any[] = [];
 
-            const predicate = (m: TestModel) => m.priority.gt(5);
+            const predicate = (m: any) => m.priority.gt(5);
             const observable = adapter.observe(
                 TestModel as PersistentModelConstructor<TestModel>,
                 predicate as any

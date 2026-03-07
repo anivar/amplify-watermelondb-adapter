@@ -18,8 +18,8 @@ jest.mock('@aws-amplify/datastore', () => ({
 }));
 
 describe('Integration Tests', () => {
-    beforeAll(() => {
-        // Clear any previous adapter state
+    beforeEach(() => {
+        // Reset global state before each test
         (global as any)._watermelonDBAdapter = undefined;
     });
 
@@ -144,18 +144,14 @@ describe('Integration Tests', () => {
     describe('Error handling', () => {
         it('should handle DataStore configuration errors gracefully', () => {
             const { DataStore } = require('@aws-amplify/datastore');
-            const originalConfigure = DataStore.configure;
 
-            DataStore.configure = jest.fn(() => {
+            (DataStore.configure as jest.Mock).mockImplementationOnce(() => {
                 throw new Error('DataStore configuration failed');
             });
 
             const success = configureDataStoreWithWatermelonDB();
             expect(success).toBe(false);
             expect(isWatermelonDBAdapterActive()).toBe(false);
-
-            // Restore
-            DataStore.configure = originalConfigure;
         });
 
         it('should handle adapter initialization errors', () => {
