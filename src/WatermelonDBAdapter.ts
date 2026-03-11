@@ -71,7 +71,7 @@ interface WatermelonModel {
 	observe(): any; // Observable
 }
 
-type DispatcherType = 'jsi' | 'asynchronous' | 'loki' | 'sqlite-node';
+type DispatcherType = 'jsi' | 'sqlite' | 'lokijs' | 'in-memory';
 
 export interface WatermelonDBAdapterConfig {
 	database?: WatermelonDatabase;
@@ -100,7 +100,10 @@ export class WatermelonDBAdapter {
 	private namespaceResolver: NamespaceResolver | undefined;
 	private modelInstanceCreator: ModelInstanceCreator | undefined;
 	private adapter: WatermelonAdapter | undefined;
-	private _dispatcherType: DispatcherType = 'jsi';
+	private _dispatcherType: DispatcherType = 'in-memory';
+	private get isInMemoryMode(): boolean {
+		return this._dispatcherType === 'in-memory';
+	}
 	private isInitialized = false;
 	private collections = new Map<string, WatermelonCollection>();
 	private models = new Map<string, WatermelonModelClass>();
@@ -188,9 +191,245 @@ export class WatermelonDBAdapter {
 				`WatermelonDB initialized with ${this._dispatcherType} dispatcher`,
 			);
 		} catch (error) {
-			logger.error('Failed to initialize WatermelonDB', error);
-			throw error;
+			logger.warn('WatermelonDB not available, using in-memory adapter', error);
+			this.initializeInMemoryFallback();
 		}
+	}
+
+	/**
+	 * Initialize a pure in-memory fallback when WatermelonDB is not available.
+	 * This provides basic CRUD without any native dependencies.
+	 */
+	private initializeInMemoryFallback(): void {
+		const memAdapter = this.createInMemoryAdapter({ version: 1, tables: [] });
+		this.adapter = memAdapter;
+		this._dispatcherType = 'in-memory';
+
+		// Create a minimal database-like wrapper around the in-memory store
+		const store = memAdapter._store as Map<string, Map<string, any>>;
+		const self = this;
+
+		// Register collections from schema as in-memory collections
+		if (this.schema) {
+			const allModels = this.getAllModels();
+
+			for (const modelName of Object.keys(allModels)) {
+				const tableName = this.getTableName(modelName);
+				if (!store.has(tableName)) {
+					store.set(tableName, new Map());
+				}
+				const tableStore = store.get(tableName)!;
+
+				// Create an in-memory collection that mimics WatermelonDB's API
+				const collection: any = {
+					modelClass: null,
+					find: async (id: string) => {
+						const raw = tableStore.get(id);
+						if (!raw) throw new Error(`Record not found: ${id}`);
+						return self.createInMemoryRecord(tableName, raw, tableStore);
+					},
+					query: (..._conditions: any[]) => ({
+						fetch: async () => {
+							return Array.from(tableStore.values()).map(
+								(raw: any) => self.createInMemoryRecord(tableName, raw, tableStore)
+							);
+						},
+						fetchCount: async () => tableStore.size,
+						observe: () => {
+							const { Subject } = require('rxjs');
+							const subject = new Subject();
+							return subject.asObservable();
+						},
+						observeCount: () => {
+							const { Subject } = require('rxjs');
+							const subject = new Subject();
+							return subject.asObservable();
+						},
+					}),
+					create: async (prepareCreate: (model: any) => void) => {
+						const raw: any = { id: `${tableName}-${Date.now()}-${Math.random()}` };
+						const record = self.createInMemoryRecord(tableName, raw, tableStore);
+						prepareCreate(record);
+						// Use the ID from raw (may have been set by prepareCreate via r._raw.id)
+						tableStore.set(raw.id, { ...raw });
+						// Update record.id to match
+						record.id = raw.id;
+						return record;
+					},
+				};
+				this.collections.set(tableName, collection);
+			}
+		}
+
+		// Create a minimal db wrapper
+		this.db = {
+			adapter: memAdapter,
+			collections: this.collections as any,
+			batch: async (...ops: any[]) => { /* no-op for in-memory */ },
+			write: async <T>(work: () => Promise<T>): Promise<T> => work(),
+			read: async <T>(work: () => Promise<T>): Promise<T> => work(),
+			localStorage: {
+				get: async () => null,
+				set: async () => {},
+				remove: async () => {},
+			},
+		};
+
+		this.isInitialized = true;
+		logger.debug('Initialized with in-memory fallback adapter');
+	}
+
+	/**
+	 * Create an in-memory record object that mimics WatermelonDB's record API
+	 */
+	private createInMemoryRecord(
+		tableName: string,
+		raw: any,
+		tableStore: Map<string, any>
+	): any {
+		return {
+			id: raw.id,
+			_raw: raw,
+			collection: { table: tableName },
+			update: async (updater: (model: any) => void) => {
+				updater({ _raw: raw, ...raw });
+				tableStore.set(raw.id, { ...raw });
+			},
+			markAsDeleted: async () => {
+				tableStore.delete(raw.id);
+			},
+			destroyPermanently: async () => {
+				tableStore.delete(raw.id);
+			},
+			observe: () => {
+				const { Subject } = require('rxjs');
+				return new Subject().asObservable();
+			},
+		};
+	}
+
+	/**
+	 * Per-table Subjects for in-memory observe notifications
+	 */
+	private tableSubjects: Map<string, any> = new Map();
+
+	/**
+	 * Notify observers for a table that data has changed
+	 */
+	private notifyTableObservers(tableName: string): void {
+		const subject = this.tableSubjects.get(tableName);
+		if (!subject) return;
+
+		const collection = this.collections.get(tableName);
+		if (collection) {
+			collection.query().fetch().then((records: any[]) => {
+				subject.next(records);
+			});
+		}
+	}
+
+	/**
+	 * Create in-memory predicate filter from a DataStore predicate function.
+	 * Returns a filter function (raw) => boolean, or null if no predicate.
+	 */
+	private createInMemoryPredicateFilter(predicate: any): ((raw: any) => boolean) | null {
+		if (!predicate || typeof predicate !== 'function') return null;
+
+		const self = this;
+		const makeMatcher = (filterFn: (raw: any) => boolean): any => ({
+			_filter: filterFn,
+			and: (other: any) => makeMatcher((raw: any) => filterFn(raw) && other._filter(raw)),
+			or: (other: any) => makeMatcher((raw: any) => filterFn(raw) || other._filter(raw)),
+		});
+
+		const builder = new Proxy({}, {
+			get: (_target, fieldName: string) => {
+				if (typeof fieldName !== 'string') return undefined;
+				const columnName = self.toSnakeCase(fieldName);
+				return {
+					eq: (value: any) => makeMatcher((raw) => raw[columnName] === value),
+					ne: (value: any) => makeMatcher((raw) => raw[columnName] !== value),
+					gt: (value: any) => makeMatcher((raw) => raw[columnName] > value),
+					ge: (value: any) => makeMatcher((raw) => raw[columnName] >= value),
+					lt: (value: any) => makeMatcher((raw) => raw[columnName] < value),
+					le: (value: any) => makeMatcher((raw) => raw[columnName] <= value),
+					contains: (value: string) => makeMatcher((raw) => String(raw[columnName] || '').includes(value)),
+					notContains: (value: string) => makeMatcher((raw) => !String(raw[columnName] || '').includes(value)),
+					beginsWith: (value: string) => makeMatcher((raw) => String(raw[columnName] || '').startsWith(value)),
+					between: (min: any, max: any) => makeMatcher((raw) => raw[columnName] >= min && raw[columnName] <= max),
+					in: (values: any[]) => makeMatcher((raw) => values.includes(raw[columnName])),
+					notIn: (values: any[]) => makeMatcher((raw) => !values.includes(raw[columnName])),
+				};
+			},
+		});
+
+		try {
+			const result = predicate(builder);
+			if (result && result._filter) {
+				return result._filter;
+			}
+		} catch {
+			// Predicate evaluation failed
+		}
+		return null;
+	}
+
+	/**
+	 * Apply in-memory filtering, sorting, and pagination to records.
+	 * Used when this.Q is not available (in-memory mode).
+	 */
+	private applyInMemoryQueryOps(
+		records: any[],
+		predicate?: any,
+		pagination?: any,
+	): any[] {
+		let result = records;
+
+		// Filter by predicate
+		if (predicate) {
+			const filterFn = this.createInMemoryPredicateFilter(predicate);
+			if (filterFn) {
+				result = result.filter((r: any) => filterFn(r._raw));
+			}
+		}
+
+		// Sort
+		if (pagination?.sort && typeof pagination.sort === 'function') {
+			const self = this;
+			const sortBuilder = new Proxy({}, {
+				get: (_target, fieldName: string) => {
+					if (typeof fieldName !== 'string') return undefined;
+					const columnName = self.toSnakeCase(fieldName);
+					return {
+						ascending: () => ({ field: columnName, direction: 'asc' }),
+						descending: () => ({ field: columnName, direction: 'desc' }),
+					};
+				},
+			});
+			try {
+				const sortSpec = pagination.sort(sortBuilder);
+				if (sortSpec && sortSpec.field) {
+					const dir = sortSpec.direction === 'desc' ? -1 : 1;
+					result = [...result].sort((a: any, b: any) => {
+						const va = a._raw[sortSpec.field];
+						const vb = b._raw[sortSpec.field];
+						if (va < vb) return -1 * dir;
+						if (va > vb) return 1 * dir;
+						return 0;
+					});
+				}
+			} catch {
+				// Sort evaluation failed
+			}
+		}
+
+		// Pagination
+		if (pagination?.limit !== undefined) {
+			const start = (pagination.page || 0) * pagination.limit;
+			result = result.slice(start, start + pagination.limit);
+		}
+
+		return result;
 	}
 
 	/**
@@ -204,11 +443,11 @@ export class WatermelonDBAdapter {
 		const adapterStrategies = [
 			{ name: 'jsi', createFn: () => this.createJSIAdapter(schema) },
 			{
-				name: 'asynchronous',
+				name: 'sqlite',
 				createFn: () => this.createSQLiteAdapter(schema),
 			},
-			{ name: 'loki', createFn: () => this.createLokiAdapter(schema) },
-			{ name: 'sqlite-node', createFn: () => this.createNodeAdapter(schema) },
+			{ name: 'lokijs', createFn: () => this.createLokiAdapter(schema) },
+			{ name: 'sqlite', createFn: () => this.createNodeAdapter(schema) },
 		];
 
 		for (const strategy of adapterStrategies) {
@@ -313,33 +552,60 @@ export class WatermelonDBAdapter {
 	}
 
 	/**
-	 * Create minimal in-memory adapter
+	 * Create minimal in-memory adapter backed by a Map store.
+	 * Used as fallback when no native adapter is available.
 	 */
 	private createInMemoryAdapter(schema: any): any {
+		const store = new Map<string, Map<string, any>>();
+
 		return {
 			schema,
 			dbName: this.getDatabaseName(),
-			find: async () => null,
-			query: async () => [],
+			_store: store,
+			find: async (table: string, id: string) => {
+				return store.get(table)?.get(id) ?? null;
+			},
+			query: async (table: string) => {
+				const tableStore = store.get(table);
+				return tableStore ? Array.from(tableStore.values()) : [];
+			},
 			batch: async (operations: any[]) => {
-				// In-memory batch operations
 				for (const op of operations) {
+					const table = op.table || op.collection;
+					if (!table) continue;
+					if (!store.has(table)) {
+						store.set(table, new Map());
+					}
+					const tableStore = store.get(table)!;
 					if (op.type === 'create') {
-						// Handle in-memory create
+						tableStore.set(op.id, { ...op.raw, id: op.id });
 					} else if (op.type === 'update') {
-						// Handle in-memory update
-					} else if (op.type === 'delete') {
-						// Handle in-memory delete
+						const existing = tableStore.get(op.id) || {};
+						tableStore.set(op.id, { ...existing, ...op.raw, id: op.id });
+					} else if (op.type === 'delete' || op.type === 'markAsDeleted' || op.type === 'destroyPermanently') {
+						tableStore.delete(op.id);
 					}
 				}
 			},
 			unsafeResetDatabase: async () => {
-				// Clear in-memory data
+				store.clear();
 				this.collections.clear();
 				this.models.clear();
 				this.queryCache.clear();
 			},
 		};
+	}
+
+	/**
+	 * Collect all models across all schema namespaces
+	 */
+	private getAllModels(): Record<string, SchemaModel> {
+		const allModels: Record<string, SchemaModel> = {};
+		if (!this.schema?.namespaces) return allModels;
+		for (const ns of Object.values(this.schema.namespaces)) {
+			Object.assign(allModels, (ns as any).models || {});
+		}
+		return allModels;
 	}
 
 	/**
@@ -354,9 +620,9 @@ export class WatermelonDBAdapter {
 		const { appSchema, tableSchema } = require('@nozbe/watermelondb/Schema');
 
 		const tables: any[] = [];
-		const userModels = this.schema.namespaces?.user?.models || {};
+		const allModels = this.getAllModels();
 
-		for (const [modelName, model] of Object.entries(userModels)) {
+		for (const [modelName, model] of Object.entries(allModels)) {
 			const table = this.buildTableSchema(modelName, model as SchemaModel);
 			if (table) {
 				tables.push(table);
@@ -441,17 +707,16 @@ export class WatermelonDBAdapter {
 		const decorators = require('@nozbe/watermelondb/decorators');
 
 		const modelClasses: any[] = [];
-		const userModels = activeSchema.namespaces?.user?.models || {};
+		const allModels = this.getAllModels();
 
-		for (const [modelName, modelSchema] of Object.entries(userModels)) {
+		for (const [modelName, modelSchema] of Object.entries(allModels)) {
 			const tableName = this.getTableName(modelName);
+			const associations = this.buildAssociations(modelSchema as SchemaModel);
 
 			// Create dynamic model class
 			class DynamicModel extends Model {
 				static table = tableName;
-				static associations = this.buildAssociations(
-					modelSchema as SchemaModel,
-				);
+				static associations = associations;
 			}
 
 			// Set proper name for debugging
@@ -658,8 +923,15 @@ export class WatermelonDBAdapter {
 		}
 
 		// Build and execute query
-		const query = this.buildQuery(collection, predicate, pagination);
-		const records = await query.fetch();
+		let records: any[];
+		if (this.isInMemoryMode) {
+			// In-memory mode: fetch all, then filter/sort/paginate in-memory
+			const allRecords = await collection.query().fetch();
+			records = this.applyInMemoryQueryOps(allRecords, predicate, pagination);
+		} else {
+			const query = this.buildQuery(collection, predicate, pagination);
+			records = await query.fetch();
+		}
 
 		// Convert to DataStore models
 		const results = records.map((record: any) =>
@@ -725,6 +997,9 @@ export class WatermelonDBAdapter {
 			model.constructor as PersistentModelConstructor<T>,
 		);
 
+		// Notify in-memory observers
+		if (this.isInMemoryMode) this.notifyTableObservers(tableName);
+
 		return [savedModel, result.opType];
 	}
 
@@ -756,6 +1031,10 @@ export class WatermelonDBAdapter {
 			if (this.isModelInstance(modelOrConstructor)) {
 				// Delete specific instance
 				records = [await collection.find((modelOrConstructor as T).id)];
+			} else if (this.isInMemoryMode && condition) {
+				// In-memory mode: fetch all then filter
+				const allRecords = await collection.query().fetch();
+				records = this.applyInMemoryQueryOps(allRecords, condition);
 			} else {
 				// Delete by query
 				const query = this.buildQuery(collection, condition);
@@ -776,6 +1055,9 @@ export class WatermelonDBAdapter {
 				}
 			}
 		});
+
+		// Notify in-memory observers
+		if (this.isInMemoryMode) this.notifyTableObservers(tableName);
 
 		return [deletedModels, []]; // Second array is for failed deletions
 	}
@@ -803,8 +1085,8 @@ export class WatermelonDBAdapter {
 			return undefined;
 		}
 
-		const record =
-			firstOrLast === QueryOne.FIRST ? records[0] : records[records.length - 1];
+		const isFirst = firstOrLast === QueryOne.FIRST || String(firstOrLast) === 'FIRST';
+		const record = isFirst ? records[0] : records[records.length - 1];
 
 		return this.convertToDataStoreModel(record, modelConstructor);
 	}
@@ -881,6 +1163,9 @@ export class WatermelonDBAdapter {
 				opTypes.push(opType);
 			}
 		});
+
+		// Notify in-memory observers
+		if (this.isInMemoryMode) this.notifyTableObservers(tableName);
 
 		return [savedModels, opTypes];
 	}
@@ -1112,21 +1397,8 @@ export class WatermelonDBAdapter {
 
 			const columnName = this.toSnakeCase(key);
 
-			// Handle special fields
-			if (
-				key === '_version' ||
-				key === '_deleted' ||
-				key === '_lastChangedAt'
-			) {
-				record._raw[columnName] = value;
-			} else {
-				// Try to set on record, fallback to _raw
-				try {
-					record[columnName] = value;
-				} catch (error) {
-					record._raw[columnName] = value;
-				}
-			}
+			// Always write to _raw for persistence
+			record._raw[columnName] = value;
 		}
 
 		// Set timestamps
@@ -1169,8 +1441,14 @@ export class WatermelonDBAdapter {
 		predicate?: ModelPredicate<any>,
 		pagination?: PaginationInput<any>,
 	): string {
-		const predicateStr = predicate ? JSON.stringify(predicate) : '';
-		const paginationStr = pagination ? JSON.stringify(pagination) : '';
+		// Functions are not JSON-serializable; use toString() for a stable key
+		const predicateStr = predicate
+			? (typeof (predicate as any) === 'function' ? (predicate as any).toString() : JSON.stringify(predicate))
+			: '';
+		const paginationStr = pagination
+			? JSON.stringify(pagination, (_key, value) =>
+				typeof value === 'function' ? value.toString() : value)
+			: '';
 
 		return `${tableName}:${predicateStr}:${paginationStr}`;
 	}
@@ -1311,10 +1589,15 @@ export class WatermelonDBAdapter {
 	}
 
 	/**
-	 * Get current dispatcher type
+	 * Get or set current dispatcher type.
+	 * Settable to allow test overrides and runtime reconfiguration.
 	 */
 	public get dispatcherType(): string {
 		return this._dispatcherType;
+	}
+
+	public set dispatcherType(value: string) {
+		this._dispatcherType = value as DispatcherType;
 	}
 
 	/**
@@ -1474,7 +1757,40 @@ export class WatermelonDBAdapter {
 				return;
 			}
 
-			// Build WatermelonDB query with subscription variables
+			// In-memory mode: use per-table Subject for reactive notifications
+			if (this.isInMemoryMode) {
+				const { Subject } = require('rxjs');
+				if (!this.tableSubjects.has(tableName)) {
+					this.tableSubjects.set(tableName, new Subject());
+				}
+				const subject = this.tableSubjects.get(tableName)!;
+
+				// Pre-compute filter once to avoid Proxy re-creation per emission
+				const filterFn = predicate
+					? this.createInMemoryPredicateFilter(predicate)
+					: null;
+
+				const subscription = subject.subscribe({
+					next: (records: any[]) => {
+						const filtered = filterFn
+							? records.filter((r: any) => filterFn(r._raw))
+							: records;
+						const results = filtered.map((record: any) =>
+							this.convertToDataStoreModel(record, modelConstructor)
+						);
+						observer.next(results);
+					},
+					error: (error: any) => observer.error(error),
+				});
+
+				this.subscriptions.add(subscription);
+				return () => {
+					subscription.unsubscribe();
+					this.subscriptions.delete(subscription);
+				};
+			}
+
+			// WatermelonDB mode: use native query observe
 			let query = this.buildQuery(collection, predicate, pagination);
 
 			// Apply subscription variables for multi-tenant filtering if available
@@ -1485,7 +1801,6 @@ export class WatermelonDBAdapter {
 					additionalConditions.push(this.Q.where(columnName, value));
 				}
 				if (additionalConditions.length > 0) {
-					// Combine existing conditions with subscription variables
 					const existingConditions = (query as any)._conditions || [];
 					query = collection.query(...existingConditions, ...additionalConditions);
 					logger.debug('Applied subscription variables to observe query:', this.subscriptionVariables);
@@ -1495,7 +1810,6 @@ export class WatermelonDBAdapter {
 			// Subscribe to WatermelonDB's observe()
 			const subscription = query.observe().subscribe({
 				next: (records: WatermelonModel[]) => {
-					// Convert WatermelonDB models to DataStore models
 					const results = records.map((record) =>
 						this.convertToDataStoreModel(record, modelConstructor)
 					);
@@ -1507,14 +1821,10 @@ export class WatermelonDBAdapter {
 				},
 			});
 
-			// Track subscription for cleanup
 			this.subscriptions.add(subscription);
-
-			// Return unsubscribe function
 			return () => {
 				subscription.unsubscribe();
 				this.subscriptions.delete(subscription);
-				// Clear related cache entries
 				const cacheKey = this.getCacheKey(tableName, predicate, pagination);
 				this.queryCache.delete(cacheKey);
 			};
@@ -1543,6 +1853,12 @@ export class WatermelonDBAdapter {
 		// Clear subscriptions set
 		this.subscriptions.clear();
 
+		// Complete and clear table subjects
+		this.tableSubjects.forEach((subject) => {
+			try { subject.complete(); } catch { /* already completed */ }
+		});
+		this.tableSubjects.clear();
+
 		// Clear all cached queries to force fresh data on next observe
 		this.queryCache.clear();
 
@@ -1553,50 +1869,36 @@ export class WatermelonDBAdapter {
 	}
 
 	/**
-	 * Get conflict handler for resolution strategy
-	 * Implements DataStore's conflict resolution
+	 * Get conflict handler for resolution strategy.
+	 * Uses the configured conflictStrategy:
+	 * - ACCEPT_REMOTE: always discard local changes in favor of remote (returns 'DISCARD')
+	 * - RETRY_LOCAL: attempt to re-apply local changes (returns 'RETRY'),
+	 *   falling back to DISCARD after 3 failed attempts
 	 */
 	public getConflictHandler(): ((conflictData: any) => any) | undefined {
 		return (conflictData: {
 			localModel: PersistentModel;
 			remoteModel: PersistentModel;
 			operation: OpType;
-			attempts: number;
+			attempts?: number;
 		}) => {
-			const { localModel, remoteModel, operation, attempts } = conflictData;
+			const { operation, attempts = 0 } = conflictData;
 
-			// Default conflict resolution strategy
+			if (this.conflictStrategy === 'ACCEPT_REMOTE') {
+				return 'DISCARD';
+			}
+
+			// RETRY_LOCAL strategy
 			if (attempts > 3) {
-				// After 3 attempts, accept remote version
-				logger.warn(`Conflict resolution: accepting remote after ${attempts} attempts`);
-				return 'ACCEPT_REMOTE';
+				logger.warn(`Conflict resolution: discarding after ${attempts} attempts`);
+				return 'DISCARD';
 			}
 
-			// For deletes, remote wins
 			if (operation === OpType.DELETE) {
-				return 'ACCEPT_REMOTE';
+				return 'DISCARD';
 			}
 
-			// Compare versions
-			const localVersion = (localModel as any)._version || 0;
-			const remoteVersion = (remoteModel as any)._version || 0;
-
-			if (remoteVersion > localVersion) {
-				return 'ACCEPT_REMOTE';
-			} else if (localVersion > remoteVersion) {
-				return 'RETRY_LOCAL';
-			}
-
-			// If versions are equal, compare timestamps
-			const localTimestamp = (localModel as any)._lastChangedAt || 0;
-			const remoteTimestamp = (remoteModel as any)._lastChangedAt || 0;
-
-			if (remoteTimestamp > localTimestamp) {
-				return 'ACCEPT_REMOTE';
-			}
-
-			// Default to retrying local changes
-			return 'RETRY_LOCAL';
+			return 'RETRY';
 		};
 	}
 
@@ -1605,11 +1907,15 @@ export class WatermelonDBAdapter {
 	 * Useful for introspection and dynamic operations
 	 */
 	public getModelDefinition(modelName: string): SchemaModel | undefined {
-		if (!this.schema?.namespaces?.user?.models) {
+		if (!this.schema?.namespaces) {
 			return undefined;
 		}
 
-		return this.schema.namespaces.user.models[modelName];
+		for (const ns of Object.values(this.schema.namespaces)) {
+			const model = (ns as any).models?.[modelName];
+			if (model) return model;
+		}
+		return undefined;
 	}
 
 	/**

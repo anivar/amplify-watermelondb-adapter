@@ -29,7 +29,7 @@ export interface WatermelonDBIntegrationConfig {
 
 /**
  * Configure DataStore with WatermelonDB adapter
- * Provides seamless integration with existing DataStore configurations
+ * Stores adapter reference on global for diagnostics and metrics access.
  */
 export const configureDataStoreWithWatermelonDB = (
     dataStoreConfig: DataStoreConfig = {},
@@ -49,9 +49,12 @@ export const configureDataStoreWithWatermelonDB = (
             storageAdapter: adapter as any
         });
 
+        // Store adapter reference for diagnostics (after successful configure)
+        (global as any)._watermelonDBAdapter = adapter;
+
         if (watermelonConfig.enableDebugLogging) {
             console.log('[WatermelonDB] DataStore configured successfully');
-            console.log('[WatermelonDB] Dispatcher type:', (adapter as any).dispatcherType);
+            console.log('[WatermelonDB] Dispatcher type:', adapter.dispatcherType);
         }
 
         return true;
@@ -68,8 +71,8 @@ export const configureDataStoreWithWatermelonDB = (
  */
 export const isWatermelonDBAdapterActive = (): boolean => {
     try {
-        const storage = (DataStore as any)?.storage;
-        return storage?.constructor?.name === 'WatermelonDBAdapter';
+        const adapter = (global as any)._watermelonDBAdapter;
+        return adapter instanceof WatermelonDBAdapter;
     } catch {
         return false;
     }
@@ -78,14 +81,18 @@ export const isWatermelonDBAdapterActive = (): boolean => {
 /**
  * Get performance metrics from WatermelonDB adapter
  */
-export const getWatermelonDBMetrics = (): any => {
+export const getWatermelonDBMetrics = (): {
+    isActive: boolean;
+    dispatcherType: string;
+    schemaVersion: number;
+} | null => {
     try {
-        const storage = (DataStore as any)?.storage;
-        if (storage && typeof storage.dispatcherType === 'string') {
+        const adapter = (global as any)._watermelonDBAdapter;
+        if (adapter && adapter instanceof WatermelonDBAdapter) {
             return {
-                dispatcherType: storage.dispatcherType,
-                isReady: storage.isReady || false,
-                schemaVersion: storage.getSchemaVersion?.() || 0
+                isActive: true,
+                dispatcherType: adapter.dispatcherType,
+                schemaVersion: adapter.getSchemaVersion?.() || 0
             };
         }
     } catch (error) {
@@ -103,21 +110,23 @@ export const createFallbackConfiguration = (
     fallbackAdapter: any,
     watermelonConfig?: WatermelonDBIntegrationConfig
 ): void => {
+    if (watermelonConfig?.enableDebugLogging) {
+        console.log('[WatermelonDB] Attempting to configure DataStore with WatermelonDB adapter');
+    }
+
     const useWatermelonDB = configureDataStoreWithWatermelonDB(
         dataStoreConfig,
         watermelonConfig
     );
 
     if (!useWatermelonDB && fallbackAdapter) {
+        console.warn('[WatermelonDB] Failed to initialize WatermelonDB adapter, falling back to provided adapter');
+
         // Fallback to provided adapter
         DataStore.configure({
             ...dataStoreConfig,
             storageAdapter: fallbackAdapter
         });
-
-        if (watermelonConfig?.enableDebugLogging) {
-            console.log('[WatermelonDB] Fell back to default adapter');
-        }
     }
 };
 
@@ -129,8 +138,15 @@ export const migrateFromSQLiteAdapter = async (
     watermelonConfig?: WatermelonDBIntegrationConfig
 ): Promise<boolean> => {
     try {
+        if (watermelonConfig?.enableDebugLogging) {
+            console.log('[WatermelonDB] Starting migration from SQLiteAdapter');
+        }
+
         // Stop DataStore if running
         await DataStore.stop();
+
+        // Clear existing data for clean migration
+        await DataStore.clear();
 
         // Configure with WatermelonDB adapter
         const success = configureDataStoreWithWatermelonDB(
@@ -143,15 +159,13 @@ export const migrateFromSQLiteAdapter = async (
             await DataStore.start();
 
             if (watermelonConfig?.enableDebugLogging) {
-                console.log('[WatermelonDB] Successfully migrated from SQLiteAdapter');
+                console.log('[WatermelonDB] Migration completed successfully');
             }
         }
 
         return success;
     } catch (error) {
-        if (watermelonConfig?.enableDebugLogging) {
-            console.error('[WatermelonDB] Migration failed:', error);
-        }
+        console.error('[WatermelonDB] Migration failed:', error);
         return false;
     }
 };
