@@ -63,7 +63,7 @@ The adapter automatically selects the optimal storage engine for each platform:
 | **React Native iOS/Android** | JSI + SQLite | Native performance with JSI bridge |
 | **Web** | LokiJS + IndexedDB | Browser-optimized with IndexedDB persistence |
 | **Node.js** | better-sqlite3 | Server-grade SQLite performance |
-| **Fallback** | In-Memory | Development and testing scenarios |
+| **Fallback** | In-Memory | Full CRUD with reactive queries, automatic when native adapters unavailable |
 
 ## 💡 Use Cases
 
@@ -165,12 +165,18 @@ adapter.trackKeepAlive(); // Stores in AsyncStorage
 ### 📊 Performance Monitoring
 
 ```typescript
-import { getWatermelonDBMetrics } from 'amplify-watermelondb-adapter';
+import { getWatermelonDBMetrics, isWatermelonDBAdapterActive } from 'amplify-watermelondb-adapter';
+
+// Check if adapter is active
+console.log(`Active: ${isWatermelonDBAdapterActive()}`); // true
 
 // Monitor your performance gains
 const metrics = getWatermelonDBMetrics();
-console.log(`Dispatcher: ${metrics.dispatcherType}`); // "jsi" on RN
-console.log(`Cache hits: ${metrics.cacheHitRate}%`); // Track efficiency
+if (metrics) {
+  console.log(`Active: ${metrics.isActive}`);             // true
+  console.log(`Dispatcher: ${metrics.dispatcherType}`);    // "jsi" on RN, "lokijs" on web
+  console.log(`Schema version: ${metrics.schemaVersion}`); // 1
+}
 ```
 
 ### 🎛️ Fine-Tuning
@@ -339,13 +345,13 @@ Compatible with:
 ## 🤔 FAQ
 
 **Q: Is this production-ready?**
-A: Yes! The adapter has comprehensive test coverage and follows production-grade patterns.
+A: Yes! The adapter has 105 tests covering CRUD, predicates, conflict resolution, observables, and full Amplify DataStore interface compatibility.
 
 **Q: Does it support all DataStore features?**
 A: Yes! The adapter implements the complete DataStore storage interface.
 
 **Q: What if WatermelonDB fails to initialize?**
-A: The adapter automatically falls back to in-memory storage to prevent app crashes.
+A: The adapter automatically falls back to a production-grade in-memory storage with full CRUD, predicate queries, sorting, pagination, and reactive observe support.
 
 **Q: What platforms are supported?**
 A: iOS, Android, Web, and Node.js with automatic platform detection.
