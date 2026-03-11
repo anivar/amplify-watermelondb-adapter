@@ -21,6 +21,11 @@ jest.mock('@aws-amplify/datastore', () => ({
 describe('DataStoreIntegration', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        // Restore async mocks to return resolved promises after clearAllMocks
+        (DataStore.configure as any).mockImplementation(() => {});
+        (DataStore.stop as any).mockResolvedValue(undefined);
+        (DataStore.clear as any).mockResolvedValue(undefined);
+        (DataStore.start as any).mockResolvedValue(undefined);
         // Reset global state
         (global as any)._watermelonDBAdapter = undefined;
     });
