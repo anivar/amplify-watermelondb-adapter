@@ -32,5 +32,4 @@ coverage/
 .env.*.local
 
 # Package manager
-package-lock.json
 yarn.lock
