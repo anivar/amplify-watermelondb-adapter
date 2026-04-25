@@ -2,6 +2,8 @@
 
 [![npm version](https://img.shields.io/npm/v/amplify-watermelondb-adapter.svg)](https://www.npmjs.com/package/amplify-watermelondb-adapter)
 [![npm downloads](https://img.shields.io/npm/dm/amplify-watermelondb-adapter.svg)](https://www.npmjs.com/package/amplify-watermelondb-adapter)
+[![CI](https://github.com/anivar/amplify-watermelondb-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/anivar/amplify-watermelondb-adapter/actions/workflows/ci.yml)
+[![Provenance](https://img.shields.io/badge/npm-provenance-success?logo=npm)](https://docs.npmjs.com/generating-provenance-statements)
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/amplify-watermelondb-adapter)](https://bundlephobia.com/package/amplify-watermelondb-adapter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
