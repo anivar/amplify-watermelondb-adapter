@@ -9,10 +9,10 @@ if (!global.TextDecoder) {
     global.TextDecoder = TextDecoder as any;
 }
 
-// Mock IndexedDB for Node.js environment
-if (typeof window === 'undefined') {
-    require('fake-indexeddb/auto');
-}
+// jsdom does NOT polyfill IndexedDB; load fake-indexeddb unconditionally
+// so the LokiJS adapter (which gates on `typeof indexedDB !== 'undefined'`)
+// picks up its persistence path under jest.
+require('fake-indexeddb/auto');
 
 // Mock crypto for Node.js
 if (typeof global.crypto === 'undefined') {
