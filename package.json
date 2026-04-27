@@ -1,7 +1,7 @@
 {
   "name": "amplify-watermelondb-adapter",
   "type": "module",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "High-performance WatermelonDB adapter for AWS Amplify DataStore with JSI support",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -50,8 +50,8 @@
   "homepage": "https://github.com/anivar/amplify-watermelondb-adapter#readme",
   "funding": "https://github.com/sponsors/anivar",
   "peerDependencies": {
-    "@aws-amplify/core": "^5.0.0 || ^6.0.0",
-    "@aws-amplify/datastore": "^4.0.0 || ^5.0.0",
+    "@aws-amplify/core": "^6.16.0",
+    "@aws-amplify/datastore": "^5.1.0",
     "@nozbe/watermelondb": ">=0.27.0",
     "react-native": ">=0.76.0"
   },

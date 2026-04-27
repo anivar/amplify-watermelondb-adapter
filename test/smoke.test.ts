@@ -46,7 +46,7 @@ describe('Smoke Tests', () => {
 
     it('should have required adapter methods', () => {
         const adapter = new WatermelonDBAdapter();
-        expect(adapter.setup).toBeDefined();
+        expect(adapter.setUp).toBeDefined();
         expect(adapter.query).toBeDefined();
         expect(adapter.save).toBeDefined();
         expect(adapter.delete).toBeDefined();

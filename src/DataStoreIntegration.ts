@@ -46,7 +46,7 @@ export const configureDataStoreWithWatermelonDB = (
         // Configure DataStore with WatermelonDB adapter
         DataStore.configure({
             ...dataStoreConfig,
-            storageAdapter: adapter as any
+            storageAdapter: adapter
         });
 
         // Store adapter reference for diagnostics (after successful configure)

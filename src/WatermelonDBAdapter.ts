@@ -3,6 +3,7 @@ import {
 	InternalSchema,
 	ModelFieldType,
 	ModelInstanceCreator,
+	ModelInstanceMetadata,
 	ModelPredicate,
 	NAMESPACES,
 	NamespaceResolver,
@@ -12,6 +13,7 @@ import {
 	PersistentModelConstructor,
 	QueryOne,
 	SchemaModel,
+	StorageAdapter,
 } from '@aws-amplify/datastore';
 
 // WatermelonDB types (imported dynamically)
@@ -94,7 +96,7 @@ export interface WatermelonDBAdapterConfig {
  * - Full DataStore compatibility
  * - Cross-platform support (React Native, Web, Node.js)
  */
-export class WatermelonDBAdapter {
+export class WatermelonDBAdapter implements StorageAdapter {
 	private db: WatermelonDatabase | undefined;
 	private schema: InternalSchema | undefined;
 	private namespaceResolver: NamespaceResolver | undefined;
@@ -143,7 +145,7 @@ export class WatermelonDBAdapter {
 	 * Setup adapter with DataStore configuration
 	 * Following Amplify's adapter pattern
 	 */
-	public async setup(
+	public async setUp(
 		theSchema: InternalSchema,
 		namespaceResolver: NamespaceResolver,
 		modelInstanceCreator: ModelInstanceCreator,
@@ -950,7 +952,7 @@ export class WatermelonDBAdapter {
 	public async save<T extends PersistentModel>(
 		model: T,
 		condition?: ModelPredicate<T>,
-	): Promise<[T, OpType]> {
+	): Promise<[T, OpType.INSERT | OpType.UPDATE][]> {
 		await this.ensureInitialized();
 
 		const modelName = model.constructor.name;
@@ -1000,7 +1002,7 @@ export class WatermelonDBAdapter {
 		// Notify in-memory observers
 		if (this.isInMemoryMode) this.notifyTableObservers(tableName);
 
-		return [savedModel, result.opType];
+		return [[savedModel, result.opType as OpType.INSERT | OpType.UPDATE]];
 	}
 
 	/**
@@ -1116,10 +1118,14 @@ export class WatermelonDBAdapter {
 	 * Batch save operations
 	 */
 	public async batchSave<T extends PersistentModel>(
-		modelConstructor: PersistentModelConstructor<T>,
-		models: T[],
-	): Promise<[T[], OpType[]]> {
+		modelConstructor: PersistentModelConstructor<any>,
+		items: ModelInstanceMetadata[],
+	): Promise<[T, OpType][]> {
 		await this.ensureInitialized();
+
+		if (items.length === 0) {
+			return [];
+		}
 
 		const tableName = this.getTableName(modelConstructor.name);
 		const collection = this.collections.get(tableName);
@@ -1131,19 +1137,34 @@ export class WatermelonDBAdapter {
 		// Clear cache
 		this.invalidateTableCache(tableName);
 
-		const savedModels: T[] = [];
-		const opTypes: OpType[] = [];
+		const result: [T, OpType][] = [];
 
 		await this.db!.write(async () => {
-			for (const model of models) {
+			for (const item of items) {
+				const model = this.modelInstanceCreator
+					? (this.modelInstanceCreator(modelConstructor, item) as T)
+					: (item as unknown as T);
+
 				let record;
 				let opType: OpType = OpType.INSERT;
 
 				try {
-					record = await collection.find(model.id);
+					record = await collection.find((model as any).id);
 					opType = OpType.UPDATE;
 				} catch (error) {
 					// Record doesn't exist
+				}
+
+				if (item._deleted) {
+					if (record) {
+						await record.markAsDeleted();
+						opType = OpType.DELETE;
+						result.push([
+							this.convertToDataStoreModel(record, modelConstructor) as T,
+							opType,
+						]);
+					}
+					continue;
 				}
 
 				if (record) {
@@ -1152,22 +1173,22 @@ export class WatermelonDBAdapter {
 					});
 				} else {
 					record = await collection.create((r: any) => {
-						r._raw.id = model.id;
+						r._raw.id = (model as any).id;
 						this.copyModelToRecord(model, r);
 					});
 				}
 
-				savedModels.push(
-					this.convertToDataStoreModel(record, modelConstructor),
-				);
-				opTypes.push(opType);
+				result.push([
+					this.convertToDataStoreModel(record, modelConstructor) as T,
+					opType,
+				]);
 			}
 		});
 
 		// Notify in-memory observers
 		if (this.isInMemoryMode) this.notifyTableObservers(tableName);
 
-		return [savedModels, opTypes];
+		return result;
 	}
 
 	/**
@@ -1496,7 +1517,7 @@ export class WatermelonDBAdapter {
 	private async ensureInitialized(): Promise<void> {
 		if (!this.isInitialized) {
 			throw new Error(
-				'WatermelonDBAdapter not initialized. Call setup() first.',
+				'WatermelonDBAdapter not initialized. Call setUp() first.',
 			);
 		}
 	}

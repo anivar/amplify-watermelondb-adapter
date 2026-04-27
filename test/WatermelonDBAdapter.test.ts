@@ -177,7 +177,7 @@ describe('WatermelonDBAdapter', () => {
             conflictStrategy: 'ACCEPT_REMOTE'
         });
 
-        await adapter.setup(
+        await adapter.setUp(
             mockSchema,
             mockNamespaceResolver,
             mockModelInstanceCreator,
@@ -218,7 +218,7 @@ describe('WatermelonDBAdapter', () => {
                 tags: ['test', 'sample']
             });
 
-            const [saved, opType] = await adapter.save(model);
+            const [[saved, opType]] = await adapter.save(model);
 
             expect(saved).toBeDefined();
             expect(saved.id).toBe(model.id);
@@ -233,7 +233,7 @@ describe('WatermelonDBAdapter', () => {
                 priority: 1
             });
 
-            const [saved] = await adapter.save(model);
+            const [[saved]] = await adapter.save(model);
 
             const updated = new TestModel({
                 ...saved,
@@ -242,7 +242,7 @@ describe('WatermelonDBAdapter', () => {
                 _version: 1
             });
 
-            const [result, opType] = await adapter.save(updated);
+            const [[result, opType]] = await adapter.save(updated);
 
             expect(result.title).toBe('Updated Title');
             expect(result.isCompleted).toBe(true);
@@ -256,7 +256,7 @@ describe('WatermelonDBAdapter', () => {
                 priority: 2
             });
 
-            const [saved] = await adapter.save(model);
+            const [[saved]] = await adapter.save(model);
 
             const condition = (m: any) => m.priority.eq(2);
 
@@ -266,7 +266,7 @@ describe('WatermelonDBAdapter', () => {
                 _version: 1
             });
 
-            const [result] = await adapter.save(updated, condition as any);
+            const [[result]] = await adapter.save(updated, condition as any);
             expect(result.title).toBe('Updated with Condition');
         });
     });
@@ -401,7 +401,7 @@ describe('WatermelonDBAdapter', () => {
                 isCompleted: false,
                 priority: 1
             });
-            const [saved] = await adapter.save(model);
+            const [[saved]] = await adapter.save(model);
 
             const [deleted, remaining] = await adapter.delete(saved);
 
@@ -440,41 +440,48 @@ describe('WatermelonDBAdapter', () => {
     });
 
     describe('batchSave', () => {
-        it('should save multiple models in batch', async () => {
-            const models = Array.from({ length: 10 }, (_, i) =>
-                new TestModel({
-                    title: `Batch Item ${i}`,
+        const toItems = (count: number, prefix = 'Batch Item') =>
+            Array.from({ length: count }, (_, i) => ({
+                ...new TestModel({
+                    title: `${prefix} ${i}`,
                     priority: i,
                     isCompleted: i % 2 === 0
-                })
-            );
+                }),
+                _version: 1,
+                _lastChangedAt: Date.now(),
+                _deleted: false,
+            }));
 
-            const [saved, opTypes] = await adapter.batchSave(
+        it('should save multiple models in batch', async () => {
+            const result = await adapter.batchSave(
                 TestModel as PersistentModelConstructor<TestModel>,
-                models
+                toItems(10) as any
             );
 
-            expect(saved.length).toBe(10);
-            expect(opTypes.every(op => op === OpType.INSERT)).toBe(true);
+            expect(result.length).toBe(10);
+            expect(result.every(([, op]) => op === OpType.INSERT)).toBe(true);
 
             const results = await adapter.query(TestModel as PersistentModelConstructor<TestModel>);
             expect(results.length).toBe(10);
         });
 
         it('should handle large batches efficiently', async () => {
-            const models = Array.from({ length: 1000 }, (_, i) =>
-                new TestModel({
+            const items = Array.from({ length: 1000 }, (_, i) => ({
+                ...new TestModel({
                     title: `Large Batch Item ${i}`,
                     priority: i % 10,
                     isCompleted: i % 3 === 0,
                     tags: [`tag${i % 5}`, `category${i % 3}`]
-                })
-            );
+                }),
+                _version: 1,
+                _lastChangedAt: Date.now(),
+                _deleted: false,
+            }));
 
             const startTime = performance.now();
-            const [saved] = await adapter.batchSave(
+            const saved = await adapter.batchSave(
                 TestModel as PersistentModelConstructor<TestModel>,
-                models
+                items as any
             );
             const endTime = performance.now();
 
@@ -609,7 +616,7 @@ describe('WatermelonDBAdapter', () => {
                 conflictStrategy: 'ACCEPT_REMOTE'
             });
 
-            await adapter.setup(
+            await adapter.setUp(
                 mockSchema,
                 mockNamespaceResolver,
                 mockModelInstanceCreator,
@@ -640,7 +647,7 @@ describe('WatermelonDBAdapter', () => {
                 conflictStrategy: 'RETRY_LOCAL'
             });
 
-            await adapter.setup(
+            await adapter.setUp(
                 mockSchema,
                 mockNamespaceResolver,
                 mockModelInstanceCreator,

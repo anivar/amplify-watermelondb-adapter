@@ -43,7 +43,7 @@ describe('WatermelonDBAdapter', () => {
         models: {},
       };
 
-      await expect(adapter.setup(schema)).resolves.toBeUndefined();
+      await expect(adapter.setUp(schema)).resolves.toBeUndefined();
     });
   });
 

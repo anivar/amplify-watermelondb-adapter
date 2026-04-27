@@ -92,7 +92,7 @@ describe('Amplify DataStore Compatibility', () => {
             batchSize: 1000
         });
 
-        await adapter.setup(
+        await adapter.setUp(
             testSchema,
             (_model: any) => NAMESPACES.USER,
             jest.fn((ctor: any, json: any) => new ctor(json)) as any,
@@ -103,7 +103,7 @@ describe('Amplify DataStore Compatibility', () => {
 
     describe('DataStore storage adapter interface', () => {
         it('should implement all required interface methods', () => {
-            const requiredMethods = ['setup', 'save', 'delete', 'query', 'observe', 'clear', 'batchSave'];
+            const requiredMethods = ['setUp', 'save', 'delete', 'query', 'observe', 'clear', 'batchSave'];
             for (const method of requiredMethods) {
                 expect(typeof (adapter as any)[method]).toBe('function');
             }
@@ -137,7 +137,8 @@ describe('Amplify DataStore Compatibility', () => {
     describe('CRUD operations via adapter interface', () => {
         it('should save and query a model (DataStore flow)', async () => {
             const todo = new Todo({ name: 'Buy groceries', isComplete: false, priority: 1 });
-            const [saved, opType] = await adapter.save(todo);
+            const saveResult = await adapter.save(todo);
+            const [saved, opType] = saveResult[0];
 
             expect(opType).toBe(OpType.INSERT);
             expect(saved.name).toBe('Buy groceries');
@@ -150,10 +151,10 @@ describe('Amplify DataStore Compatibility', () => {
 
         it('should update an existing model', async () => {
             const todo = new Todo({ name: 'Original', isComplete: false });
-            const [saved] = await adapter.save(todo);
+            const [[saved]] = await adapter.save(todo);
 
             const updated = new Todo({ ...saved, name: 'Updated', isComplete: true, _version: 1 });
-            const [result, opType] = await adapter.save(updated);
+            const [[result, opType]] = await adapter.save(updated);
 
             expect(opType).toBe(OpType.UPDATE);
             expect(result.name).toBe('Updated');
@@ -162,7 +163,7 @@ describe('Amplify DataStore Compatibility', () => {
 
         it('should delete a model', async () => {
             const todo = new Todo({ name: 'To delete', isComplete: false });
-            const [saved] = await adapter.save(todo);
+            const [[saved]] = await adapter.save(todo);
 
             const [deleted] = await adapter.delete(saved);
             expect(deleted.length).toBe(1);
@@ -173,13 +174,16 @@ describe('Amplify DataStore Compatibility', () => {
         });
 
         it('should batch save multiple models', async () => {
-            const todos = Array.from({ length: 5 }, (_, i) =>
-                new Todo({ name: `Todo ${i}`, isComplete: i % 2 === 0, priority: i })
-            );
+            const items = Array.from({ length: 5 }, (_, i) => ({
+                ...new Todo({ name: `Todo ${i}`, isComplete: i % 2 === 0, priority: i }),
+                _version: 1,
+                _lastChangedAt: Date.now(),
+                _deleted: false,
+            }));
 
-            const [saved, opTypes] = await adapter.batchSave(Todo as any, todos);
-            expect(saved.length).toBe(5);
-            expect(opTypes.every(op => op === OpType.INSERT)).toBe(true);
+            const result = await adapter.batchSave(Todo as any, items as any);
+            expect(result.length).toBe(5);
+            expect(result.every(([, op]) => op === OpType.INSERT)).toBe(true);
 
             const results = await adapter.query(Todo as any);
             expect(results.length).toBe(5);
